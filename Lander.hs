@@ -16,6 +16,9 @@ instance Num Vector2D where
   fromInteger 0 = Vector2D 0.0 0.0
   fromInteger _ = undefined
 
+angleVector :: Angle -> Double -> Vector2D
+angleVector a d = Vector2D (d * cos a) (d * sin a)
+
 scale :: Vector2D -> Double -> Vector2D
 scale (Vector2D x y) k = Vector2D (x*k) (y*k)
 
@@ -29,6 +32,8 @@ data Lander = Lander { landerPos :: Vector2D
                      , landerAngle :: Angle
                      , landerAngleV :: Angle
                      } deriving (Eq, Show)
+
+data ControlPoint = ControlPoint Double Double
 
 -- Constants
 boundaries = Vector2D 100.0 100.0
@@ -55,24 +60,24 @@ updateVelocities dt pa ra (Lander p pv r rv) = Lander p (pv + (scale pa dt)) r (
 
 type Score = Double
 
-fly :: Lander -> (Lander, Duration)
-fly lander = fly' 0.0 defaultStep lander
+fly :: Lander -> [ControlPoint] -> (Lander, Duration)
+fly lander cs = fly' cs 0.0 defaultStep lander
   where
-    fly' t dt lander = trace (show $ landerPos lander) $
+    fly' ((ControlPoint pa ra):cs) t dt lander = trace (show $ lander) $
      if inBounds boundaries $ landerPos lander
-     then fly' (t+dt) dt $
-       updateVelocities defaultStep gAcceleration 0.0 $
-       moveLander defaultStep lander
+     then let pav = gAcceleration + angleVector (landerAngle lander) pa in
+       fly' cs (t+dt) dt $ updateVelocities defaultStep pav ra $ moveLander defaultStep lander
      else (lander, t)
 
 -- TODO: take time into account
 calculateScore :: Duration -> Vector2D -> Score
-calculateScore t (Vector2D x y) = len2 (landingPadPosition - pos')
+calculateScore t (Vector2D x y) = 
+  if inBounds boundaries pos' then len2 (landingPadPosition - pos') else 0
   where pos' = Vector2D x 0
 
-output = putStrLn . show
+controls = (ControlPoint 1.0 1.0) : controls
 
 main :: IO ()
-main = output $ calculateScore t (landerPos lander)
-  where (lander, t) = fly newLander
+main = print $ calculateScore t (landerPos lander)
+  where (lander, t) = fly newLander controls
   --putStrLn "Hello Lander"
