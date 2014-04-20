@@ -1,5 +1,6 @@
 module Lander where
 
+import System.Random
 import Debug.Trace -- XXX
 
 type Angle = Double
@@ -33,7 +34,7 @@ data Lander = Lander { landerPos :: Vector2D
                      , landerAngleV :: Angle
                      } deriving (Eq, Show)
 
-data ControlPoint = ControlPoint Double Double
+data ControlPoint = ControlPoint Double Double deriving (Eq, Show)
 
 -- Constants
 boundaries = Vector2D 100.0 100.0
@@ -68,16 +69,33 @@ fly lander cs = fly' cs 0.0 defaultStep lander
      then let pav = gAcceleration + angleVector (landerAngle lander) pa in
        fly' cs (t+dt) dt $ updateVelocities defaultStep pav ra $ moveLander defaultStep lander
      else (lander, t)
+-- TODO: refactor using a fold
 
--- TODO: take time into account
-calculateScore :: Duration -> Vector2D -> Score
-calculateScore t (Vector2D x y) = 
-  if inBounds boundaries pos' then len2 (landingPadPosition - pos') else 0
-  where pos' = Vector2D x 0
+calculateScore :: Duration -> Lander -> Score
+calculateScore t (Lander (Vector2D x y) pv r rv) =
+  if not $ inBounds boundaries p' then 0
+  else len2 (landingPadPosition - p') + len2 pv + r*r  -- TODO: weights
+  where p' = Vector2D x 0
 
-controls = (ControlPoint 1.0 1.0) : controls
+nullControls = (ControlPoint 0.0 0.0) : nullControls
+
+multiplex2 (x1:x2:xs) = (x1, x2):(multiplex2 xs)
+
+randomControls :: StdGen -> [ControlPoint]
+randomControls g =
+  let rs = randomRs (-1 :: Int, 1) g
+  in map cp (multiplex2 rs)
+  where cp (r1, r2) = ControlPoint pa ra
+                      where pa = case r1 of
+                              -1 -> 0
+                              0 -> 5
+                              1 -> 15
+                            ra = case r2 of
+                              -1 -> -45
+                              0 -> 0
+                              1 -> 45
 
 main :: IO ()
-main = print $ calculateScore t (landerPos lander)
-  where (lander, t) = fly newLander controls
-  --putStrLn "Hello Lander"
+main =
+  print $ calculateScore t lander
+  where (lander, t) = fly newLander (randomControls $ mkStdGen 1)
