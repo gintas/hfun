@@ -146,18 +146,20 @@ mutation g ccs = map mutate ccs
         rnd = randomControls g
 -- TODO: avoid conflating translation and rotation actions into one
 
-runBatch :: [[ControlPoint]] -> [[ControlPoint]]
-runBatch ccs =
-  let top = selection flightScore ccs kSelected
-      mutated = mutation (unsafePerformIO newStdGen) top
-      new = recombination (unsafePerformIO newStdGen) top (kPopulation - kSelected - kSelected)
-  in top ++ mutated ++ new
+runBatch :: ([[ControlPoint]], StdGen) -> ([[ControlPoint]], StdGen)
+runBatch (ccs, g) =
+  let (s1, g') = random g
+      (s2, g'') = random g'
+      top = selection flightScore ccs kSelected
+      mutated = mutation (mkStdGen s1) top
+      new = recombination (mkStdGen s2) top (kPopulation - kSelected - kSelected)
+  in (top ++ mutated ++ new, g'')
 
-initialPopulation :: Int -> [[ControlPoint]]
-initialPopulation n = map (\s -> randomControls $ (unsafePerformIO newStdGen)) [1..n]
+initialPopulation :: StdGen -> Int -> [[ControlPoint]]
+initialPopulation g n = map (\s -> randomControls $ g) [1..n]
 
-geneticSearch :: [[[ControlPoint]]]
-geneticSearch = iterate runBatch (initialPopulation kPopulation)
+geneticSearch :: StdGen -> [[[ControlPoint]]]
+geneticSearch g = map fst $ iterate runBatch ((initialPopulation g kPopulation), g)
 
 poolRating :: [[ControlPoint]] -> Score
 poolRating ccs = sum (map flightScore $ take kSelected ccs) / (fromIntegral kSelected)
