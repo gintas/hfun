@@ -1,5 +1,6 @@
-module Lander where
+module Main where
 
+import Control.Monad.Par (parMap, runPar, NFData)
 import Data.Function
 import Data.List
 import System.Random
@@ -43,8 +44,13 @@ data ControlPoint = ControlPoint Double Double deriving (Eq, Ord, Show)
 boundaries = Vector2D 100.0 100.0
 landerStartPosition = Vector2D 10.0 80.0
 landingPadPosition = Vector2D 50.0 0.0
-gAcceleration = Vector2D 0.0 (-9.8)
+gAcceleration = Vector2D 0.0 (-10)
 defaultStep = 0.2 :: Duration -- s
+
+-- Parameters for the genetic algorithm
+kPopulation = 200
+kSelected = 30
+kMutation = 0.1
 
 inBounds :: Vector2D -> Vector2D -> Bool
 inBounds boundaries v = (v == abs v) && (v' == abs v')
@@ -78,9 +84,9 @@ fly lander cs = fly' cs 0.0 defaultStep lander
 calculateScore :: Duration -> Lander -> Score
 calculateScore t (Lander (Vector2D x y) pv r rv) =
   if not $ inBounds boundaries p' then inf
-  else len2 (landingPadPosition - p') + len2 pv + r*r  -- TODO: weights
+  else len2 (landingPadPosition - p') + 5 * len2 pv + r*r  -- TODO: weights
   where p' = Vector2D x 0
-        inf = 1/0
+        inf = 999999999
 
 nullControls = (ControlPoint 0.0 0.0) : nullControls
 
@@ -90,7 +96,7 @@ createControlPoint :: (Int, Int) -> ControlPoint
 createControlPoint (r1, r2) = ControlPoint pa ra
   where pa = case r1 of
           -1 -> 0
-          0 -> 5
+          0 -> 10
           1 -> 20
         ra = case r2 of
           -1 -> -45
@@ -109,8 +115,8 @@ flightScore cs = calculateScore t lander
   where (lander, t) = fly newLander cs
 
 selection :: (a -> Score) -> [a] -> Int -> [a]
-selection scorer css m = map snd $ take m $ sortBy (compare `on` fst) $ map result css
-  where result cs = (scorer cs, cs)
+selection scorer css m = map snd $ take m $ sortBy (compare `on` fst) $
+                         zip (runPar $ parMap scorer css) css
 
 combine :: Probability -> StdGen -> [a] -> [a] -> [a]
 combine p g (c1:cs1) (c2:cs2) =
@@ -132,15 +138,13 @@ recombination g ccs n =
   -- in trace (show i1 ++ " " ++ show i2) $
   in entry : rest
   where (i1, i2, g') = randomPair g (length ccs - 1)
+-- TODO: might be better to combine by splicing subsequences
 
 mutation :: StdGen -> [[ControlPoint]] -> [[ControlPoint]]
 mutation g ccs = map mutate ccs
   where mutate cs = combine kMutation g cs rnd
-        rnd = randomControls $ g
-
-kPopulation = 200
-kSelected = 30
-kMutation = 0.01
+        rnd = randomControls g
+-- TODO: avoid conflating translation and rotation actions into one
 
 runBatch :: [[ControlPoint]] -> [[ControlPoint]]
 runBatch ccs =
