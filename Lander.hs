@@ -97,7 +97,7 @@ createControlPoint (r1, r2) = ControlPoint pa ra
   where pa = case r1 of
           -1 -> 0
           0 -> 10
-          1 -> 20
+          1 -> 30
         ra = case r2 of
           -1 -> -45
           0 -> 0
