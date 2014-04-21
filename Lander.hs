@@ -1,4 +1,4 @@
-module Main where
+module Lander where
 
 import Control.Monad.Par (parMap, runPar, NFData)
 import Data.Function
@@ -161,13 +161,3 @@ geneticSearch = iterate runBatch (initialPopulation kPopulation)
 
 poolRating :: [[ControlPoint]] -> Score
 poolRating ccs = sum (map flightScore $ take kSelected ccs) / (fromIntegral kSelected)
-
-main :: IO ()
-main =
-  --print $ map flightScore $ selection flightScore (initialPopulation 100) 10
-  printResult 0 geneticSearch
-  where printResult n (x:xs) = do
-          if (n `mod` 50) == 0
-            then putStrLn $ (show n) ++ ": " ++ (show $ poolRating x) ++ "\n" ++ (show $ fly newLander (head x))
-            else return ()
-          printResult (n+1) xs
