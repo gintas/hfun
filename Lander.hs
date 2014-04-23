@@ -45,12 +45,12 @@ boundaries = Vector2D 100.0 100.0
 landerStartPosition = Vector2D 10.0 80.0
 landingPadPosition = Vector2D 50.0 0.0
 gAcceleration = Vector2D 0.0 (-10)
-defaultStep = 0.2 :: Duration -- s
+defaultStep = 0.1 :: Duration -- s
 
 -- Parameters for the genetic algorithm
 kPopulation = 200
 kSelected = 30
-kMutation = 0.1
+kMutation = 0.03
 
 inBounds :: Vector2D -> Vector2D -> Bool
 inBounds boundaries v = (v == abs v) && (v' == abs v')
@@ -70,19 +70,22 @@ updateVelocities dt pa ra (Lander p pv r rv) = Lander p (pv + (scale pa dt)) r (
 
 type Score = Double
 
-fly :: Lander -> [ControlPoint] -> (Lander, Duration)
+fly :: Lander -> [ControlPoint] -> [Lander]
 fly lander cs = fly' cs 0.0 defaultStep lander
   where
     fly' ((ControlPoint pa ra):cs) t dt lander =
      --trace (show $ lander) $
      if inBounds boundaries $ landerPos lander
-     then let pav = gAcceleration + angleVector (landerAngle lander) pa in
-       fly' cs (t+dt) dt $ updateVelocities defaultStep pav ra $ moveLander defaultStep lander
-     else (lander, t)
+     then let pav = gAcceleration + angleVector (landerAngle lander) pa
+              movedLander = moveLander defaultStep lander
+              updatedLander = updateVelocities defaultStep pav ra movedLander
+              landers = fly' cs (t+dt) dt updatedLander
+          in lander : landers
+     else []
 -- TODO: refactor using a fold
 
-calculateScore :: Duration -> Lander -> Score
-calculateScore t (Lander (Vector2D x y) pv r rv) =
+calculateScore :: Lander -> Score
+calculateScore (Lander (Vector2D x y) pv r rv) =
   if not $ inBounds boundaries p' then inf
   else len2 (landingPadPosition - p') + 5 * len2 pv + r*r  -- TODO: weights
   where p' = Vector2D x 0
@@ -111,8 +114,8 @@ randomControls g =
 type Probability = Double
 
 flightScore :: [ControlPoint] -> Score
-flightScore cs = calculateScore t lander
-  where (lander, t) = fly newLander cs
+flightScore cs = calculateScore (last landers)
+  where landers = fly newLander cs
 
 selection :: (a -> Score) -> [a] -> Int -> [a]
 selection scorer css m = map snd $ take m $ sortBy (compare `on` fst) $
